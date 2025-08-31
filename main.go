@@ -28,8 +28,6 @@ var funds = []vgfund{
 }
 
 func main() {
-	fmt.Println("Vanguard Price Retrieval")
-
 	wg := &sync.WaitGroup{}
 	wg.Add(len(funds))
 
@@ -41,6 +39,8 @@ func main() {
 }
 
 func retrieve(fund vgfund, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	resp, err := http.Get(fund.URL)
 	if err != nil {
 		fmt.Println("Couldn't retrieve %s", fund.URL)
@@ -53,6 +53,4 @@ func retrieve(fund vgfund, wg *sync.WaitGroup) {
 		return
 	}
 	fmt.Printf("%s: %s\n", fund.Name, d.NavPrice.Value)
-
-	wg.Done()
 }
