@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
+	"os"
+	"slices"
+	"strconv"
+	"strings"
 )
 
 // struct for incoming data, containing only used fields
@@ -17,30 +20,51 @@ type data struct {
 type vgfund struct {
 	Name string
 	URL  string
+	ID   string
 }
 
-var funds = []vgfund{
-	{Name: "LifeStrategy 20% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-20-equity-fund-gbp-gross-accumulation-shares"},
-	{Name: "LifeStrategy 40% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-40-equity-fund-accumulation-shares"},
-	{Name: "LifeStrategy 60% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-60-equity-fund-accumulation-shares"},
-	{Name: "LifeStrategy 80% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-80-equity-fund-accumulation-shares"},
-	{Name: "LifeStrategy 100% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-100-equity-fund-accumulation-shares"},
+type vgfundprice struct {
+	vgfund
+	price float64
+}
+
+var availableFunds = []vgfund{
+	{Name: "LifeStrategy 20% Equity", ID: "ls20", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-20-equity-fund-gbp-gross-accumulation-shares"},
+	{Name: "LifeStrategy 40% Equity", ID: "ls40", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-40-equity-fund-accumulation-shares"},
+	{Name: "LifeStrategy 60% Equity", ID: "ls60", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-60-equity-fund-accumulation-shares"},
+	{Name: "LifeStrategy 80% Equity", ID: "ls80", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-80-equity-fund-accumulation-shares"},
+	{Name: "LifeStrategy 100% Equity", ID: "ls100", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-100-equity-fund-accumulation-shares"},
 }
 
 func main() {
-	wg := &sync.WaitGroup{}
-	wg.Add(len(funds))
+	var selectedFunds []vgfund
 
-	for _, fund := range funds {
-		go retrieve(fund, wg)
+	if len(os.Args) == 2 {
+		cliFunds := strings.Split(os.Args[1], ",")
+
+		for _, v := range availableFunds {
+			if slices.Contains(cliFunds, v.ID) {
+				selectedFunds = append(selectedFunds, v)
+			}
+		}
+	} else {
+		selectedFunds = availableFunds
 	}
 
-	wg.Wait()
+	ch := make(chan vgfundprice, len(selectedFunds))
+
+	for _, fund := range selectedFunds {
+		go retrieve(fund, ch)
+	}
+
+	for i := len(selectedFunds); i != 0; i-- {
+		fundPrice := <-ch
+		fmt.Println(fundPrice.Name, fundPrice.price)
+	}
+
 }
 
-func retrieve(fund vgfund, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func retrieve(fund vgfund, ch chan vgfundprice) {
 	resp, err := http.Get(fund.URL)
 	if err != nil {
 		fmt.Println("Couldn't retrieve %s", fund.URL)
@@ -52,5 +76,8 @@ func retrieve(fund vgfund, wg *sync.WaitGroup) {
 	if err := json.NewDecoder(resp.Body).Decode(&d); err != nil {
 		return
 	}
-	fmt.Printf("%s: %s\n", fund.Name, d.NavPrice.Value)
+
+	fundValue, err := strconv.ParseFloat(d.NavPrice.Value, 64)
+
+	ch <- vgfundprice{fund, fundValue}
 }
