@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -31,6 +32,14 @@ var availableFunds = map[string]vgfund{
 }
 
 func main() {
+	err := run(os.Args, os.Stdin, os.Stdout)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	selectedFunds := getSelectedFunds()
 
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -49,6 +58,8 @@ func main() {
 
 		fmt.Println(fundInfo.Name, fundInfo.Price)
 	}
+
+	return nil
 }
 
 func getSelectedFunds() []vgfund {
@@ -59,8 +70,11 @@ func getSelectedFunds() []vgfund {
 
 		for _, v := range cliFunds {
 			fund, ok := availableFunds[v]
+			// check map key existence before adding to selected funds
 			if ok {
 				selectedFunds = append(selectedFunds, fund)
+			} else {
+				fmt.Printf("Fund with ID %s not recognised\n", v)
 			}
 		}
 	} else {
