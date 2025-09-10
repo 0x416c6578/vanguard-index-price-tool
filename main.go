@@ -20,7 +20,8 @@ type vgfund struct {
 
 type result struct {
 	vgfund
-	err error
+	err     error
+	latency time.Duration
 }
 
 var availableFunds = map[string]vgfund{
@@ -32,14 +33,14 @@ var availableFunds = map[string]vgfund{
 }
 
 func main() {
-	err := run(os.Args, os.Stdin, os.Stdout)
+	err := run(os.Args, os.Stdin, os.Stdout, os.Stderr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(args []string, stdin io.Reader, stdout io.Writer) error {
+func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	selectedFunds := getSelectedFunds()
 
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -50,13 +51,13 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	}
 
 	for i := len(selectedFunds); i != 0; i-- {
-		fundInfo := <-ch
-		if fundInfo.err != nil {
-			fmt.Println("Failed to receive fund info for", fundInfo.Name, fundInfo.err)
+		res := <-ch
+		if res.err != nil {
+			fmt.Fprintln(stdout, "Failed to receive fund info for", res.Name, res.err)
 			continue
 		}
 
-		fmt.Println(fundInfo.Name, fundInfo.Price)
+		fmt.Fprintf(stdout, "%-25s £%.2f (%s)\n", res.Name, res.Price, res.latency)
 	}
 
 	return nil
@@ -86,15 +87,17 @@ func getSelectedFunds() []vgfund {
 }
 
 func retrieveFundPrice(client *http.Client, fund vgfund, ch chan<- result) {
+	start := time.Now()
+
 	resp, err := client.Get(fund.URL)
 	if err != nil {
-		ch <- result{fund, errors.New("failed to get fund info from URL")}
+		ch <- result{fund, errors.New("failed to get fund info from URL"), time.Since(start).Round(time.Millisecond)}
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		ch <- result{fund, errors.New("bad response from vanguard")}
+		ch <- result{fund, errors.New("bad response from vanguard"), time.Since(start).Round(time.Millisecond)}
 	}
 
 	var d struct {
@@ -104,17 +107,17 @@ func retrieveFundPrice(client *http.Client, fund vgfund, ch chan<- result) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&d); err != nil {
-		ch <- result{fund, errors.New("failed to decode response body")}
+		ch <- result{fund, errors.New("failed to decode response body"), time.Since(start).Round(time.Millisecond)}
 		return
 	}
 
 	fundPrice, err := strconv.ParseFloat(d.NavPrice.Value, 64)
 	if err != nil {
-		ch <- result{fund, errors.New("failed to read NavPrice value as float")}
+		ch <- result{fund, errors.New("failed to read NavPrice value as float"), time.Since(start).Round(time.Millisecond)}
 		return
 	}
 
 	fund.Price = fundPrice
 
-	ch <- result{fund, nil}
+	ch <- result{fund, nil, time.Since(start).Round(time.Millisecond)}
 }
