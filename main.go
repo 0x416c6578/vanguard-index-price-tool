@@ -25,11 +25,16 @@ type result struct {
 }
 
 var availableFunds = map[string]vgfund{
-	"ls20":  {Name: "LifeStrategy 20% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-20-equity-fund-gbp-gross-accumulation-shares"},
-	"ls40":  {Name: "LifeStrategy 40% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-40-equity-fund-accumulation-shares"},
-	"ls60":  {Name: "LifeStrategy 60% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-60-equity-fund-accumulation-shares"},
-	"ls80":  {Name: "LifeStrategy 80% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-80-equity-fund-accumulation-shares"},
-	"ls100": {Name: "LifeStrategy 100% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-100-equity-fund-accumulation-shares"},
+	"ls20":   {Name: "LifeStrategy 20% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-20-equity-fund-gbp-gross-accumulation-shares"},
+	"ls40":   {Name: "LifeStrategy 40% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-40-equity-fund-accumulation-shares"},
+	"ls60":   {Name: "LifeStrategy 60% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-60-equity-fund-accumulation-shares"},
+	"ls80":   {Name: "LifeStrategy 80% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-80-equity-fund-accumulation-shares"},
+	"ls100":  {Name: "LifeStrategy 100% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-100-equity-fund-accumulation-shares"},
+	"lsg20":  {Name: "LifeStrategy Global 20% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-global-20-equity-fund-a-gbp-accumulation-shares"},
+	"lsg40":  {Name: "LifeStrategy Global 40% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-global-40-equity-fund-a-gbp-accumulation-shares"},
+	"lsg60":  {Name: "LifeStrategy Global 60% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-global-60-equity-fund-a-gbp-accumulation-shares"},
+	"lsg80":  {Name: "LifeStrategy Global 80% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-global-80-equity-fund-a-gbp-accumulation-shares"},
+	"lsg100": {Name: "LifeStrategy Global 100% Equity", URL: "https://www.vanguardinvestor.co.uk/api/funds/vanguard-lifestrategy-global-100-equity-fund-a-gbp-accumulation-shares"},
 }
 
 func main() {
@@ -50,14 +55,19 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 		go retrieveFundPrice(client, fund, ch)
 	}
 
+	results := make([]result, 0, len(selectedFunds))
+
 	for i := len(selectedFunds); i != 0; i-- {
 		res := <-ch
 		if res.err != nil {
 			fmt.Fprintln(stdout, "Failed to receive fund info for", res.Name, res.err)
 			continue
 		}
+		results = append(results, res)
+	}
 
-		fmt.Fprintf(stdout, "%-25s £%.2f (%s)\n", res.Name, res.Price, res.latency)
+	for _, fund := range results {
+		fmt.Fprintf(stdout, "%-25s £%.2f (%s)\n", fund.Name, fund.Price, fund.latency)
 	}
 
 	return nil
